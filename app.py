@@ -90,20 +90,86 @@ st.markdown(
       'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap'
     );
 
+    /* Palette claire : fond blanc et textes noirs par défaut */
+    :root {{
+        color-scheme: light;
+        --text-color: #000000;
+        --background-color: #FFFFFF;
+        --secondary-background-color: {BG};
+        --input-background-color: #FFFFFF;
+        --primary-color: {NAVY};
+    }}
+
     html, body, [class*="css"] {{
         font-family: 'DM Sans', sans-serif;
+        color: #000000;
     }}
 
     .stApp {{
         background-color: {BG};
+        color: #000000;
     }}
 
+    /* Zone principale : garantir la lisibilité des textes et composants */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"] {{
+        color: #000000;
+    }}
+
+    [data-testid="stAppViewContainer"] .stMarkdown,
+    [data-testid="stAppViewContainer"] .stMarkdown p,
+    [data-testid="stAppViewContainer"] .stText,
+    [data-testid="stAppViewContainer"] .stCaption,
+    [data-testid="stAppViewContainer"] label,
+    [data-testid="stAppViewContainer"] [data-testid="stWidgetLabel"],
+    [data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"],
+    [data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"],
+    [data-testid="stAppViewContainer"] [data-testid="stMetricLabel"],
+    [data-testid="stAppViewContainer"] [data-testid="stMetricValue"],
+    [data-testid="stAppViewContainer"] [data-testid="stMetricDelta"] {{
+        color: #000000;
+    }}
+
+    /* Champs de saisie : fond blanc et caractères noirs */
+    [data-testid="stAppViewContainer"] input,
+    [data-testid="stAppViewContainer"] textarea,
+    [data-testid="stAppViewContainer"] [data-baseweb="select"] > div,
+    [data-testid="stAppViewContainer"] [data-baseweb="input"] > div {{
+        background-color: #FFFFFF;
+        color: #000000;
+    }}
+
+    [data-testid="stAppViewContainer"] input::placeholder,
+    [data-testid="stAppViewContainer"] textarea::placeholder {{
+        color: #555555;
+        opacity: 1;
+    }}
+
+    /* Barre latérale blanche avec tous les textes en noir */
     [data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, {NAVY} 0%, #173A55 100%);
+        background: #FFFFFF !important;
+        border-right: 1px solid #DCE2F0;
     }}
 
-    [data-testid="stSidebar"] * {{
-        color: #F4F7FA;
+    [data-testid="stSidebar"] *,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{
+        color: #000000 !important;
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {{
+        color: #000000 !important;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] [aria-checked="true"] {{
+        color: #000000 !important;
     }}
 
     [data-testid="stSidebar"] [data-testid="stRadio"] label {{
