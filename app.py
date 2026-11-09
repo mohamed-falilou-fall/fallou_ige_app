@@ -9,7 +9,7 @@ Original file is located at
 
 # -*- coding: utf-8 -*-
 """
-MANUEL INTÉGRÉ DE VÉRIFICATION
+MANUEL INTÉGRÉ DE VÉRIFICATION DE MOHAMED FALILOU FALL DIT FALLOU
 
 Fonctionnalités :
 - Tableau de bord institutionnel
@@ -18,12 +18,9 @@ Fonctionnalités :
 - Classement des 11 organismes les plus exposés aux risques,
   uniquement si des données réelles sont chargées
 - Accès au manuel Tome II et aux 30 indicateurs COMP
-
-Installation :
-pip install streamlit pandas
-
-Lancement :
-streamlit run app.py
+- Analyse prédictive expérimentale sur historique réel (scikit-learn)
+- Contrôles automatisés de complétude, doublons et valeurs atypiques
+- Assistant IA facultatif via API OpenAI, avec mode local sans IA
 """
 
 from pathlib import Path
@@ -31,6 +28,7 @@ from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 import re
+import os
 
 
 # ============================================================
@@ -337,6 +335,9 @@ with st.sidebar:
         "Accueil",
         "Déclenchement de la mission",
         "Organismes à risque",
+        "Analyse prédictive des risques",
+        "Contrôles automatisés",
+        "Assistant IA des inspecteurs",
         "Préparation de la mission",
         "Travaux de terrain",
         "Bibliothèque juridique",
@@ -1726,6 +1727,393 @@ def page_matrices():
     st.caption("Stockage : fichiers CSV dans le dossier 'donnees_matrices' situé à côté de app.py. Sauvegardez ce dossier avec le script pour conserver les registres.")
 
 
+
+# ============================================================
+# 10. ANALYSE PRÉDICTIVE DES RISQUES
+# ============================================================
+
+def page_analyse_predictive():
+    st.title("Analyse prédictive et priorisation des risques")
+    st.write(
+        "Entraîner un modèle statistique sur des données historiques réelles, "
+        "évaluer ses performances, puis estimer le niveau de risque d'observations "
+        "nouvelles. Le modèle ne constitue ni une preuve d'irrégularité ni une décision."
+    )
+    st.markdown(
+        """<div class="notice"><b>Condition méthodologique :</b> cette fonction nécessite
+        un historique documenté comprenant une variable cible connue (par exemple :
+        anomalie confirmée / non confirmée) et des variables explicatives pertinentes.
+        Aucun modèle n'est entraîné sur des données fictives ou sur les seuls exemples
+        de l'application.</div>""",
+        unsafe_allow_html=True,
+    )
+
+    fichier = st.file_uploader(
+        "Importer le fichier historique d'apprentissage (CSV)",
+        type=["csv"], key="predict_train_csv",
+        help="Une ligne par observation contrôlée. La variable cible doit être renseignée."
+    )
+    if fichier is None:
+        st.info("Chargez un historique réel pour commencer l'analyse.")
+        st.caption("Colonnes possibles selon votre système d'information : organisme, période, montant, nombre d'opérations, retards, écarts, anomalies confirmées. Seules les colonnes réellement présentes seront utilisées.")
+        return
+
+    try:
+        historique = pd.read_csv(fichier)
+    except Exception as exc:
+        st.error(f"Lecture du fichier impossible : {exc}")
+        return
+
+    if len(historique) < 20:
+        st.warning("Historique trop limité : au moins 20 lignes sont requises pour tenter une première évaluation. Un volume plus important et représentatif est fortement recommandé.")
+    st.write(f"**Données chargées :** {len(historique)} lignes et {len(historique.columns)} colonnes.")
+    st.dataframe(historique.head(10), use_container_width=True, hide_index=True)
+
+    colonnes_cibles = list(historique.columns)
+    cible = st.selectbox("Variable cible (résultat historique connu)", colonnes_cibles, key="predict_target")
+    variables_numeriques = [
+        c for c in historique.select_dtypes(include="number").columns
+        if c != cible
+    ]
+    if not variables_numeriques:
+        st.error("Aucune variable explicative numérique n'est disponible. Préparez des variables quantitatives pertinentes dans le fichier.")
+        return
+    variables = st.multiselect(
+        "Variables explicatives à utiliser",
+        variables_numeriques,
+        default=variables_numeriques[:min(8, len(variables_numeriques))],
+        key="predict_features"
+    )
+    if not variables:
+        st.warning("Sélectionnez au moins une variable explicative.")
+        return
+
+    if st.button("Entraîner et évaluer le modèle", type="primary", key="train_risk_model"):
+        try:
+            from sklearn.ensemble import RandomForestClassifier
+            from sklearn.model_selection import train_test_split
+            from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report, confusion_matrix
+            from sklearn.impute import SimpleImputer
+            from sklearn.pipeline import Pipeline
+        except ImportError:
+            st.error("Scikit-learn n'est pas installé. Installez-le avec : pip install scikit-learn")
+            return
+
+        donnees = historique[variables + [cible]].copy()
+        donnees[cible] = donnees[cible].astype(str).str.strip()
+        donnees = donnees[donnees[cible].ne("") & donnees[cible].ne("nan")]
+        donnees = donnees.dropna(subset=[cible])
+        classes = donnees[cible].value_counts()
+        if len(classes) < 2 or classes.min() < 2:
+            st.error("La variable cible doit contenir au moins deux classes, avec au moins deux observations dans chaque classe.")
+            return
+        if len(donnees) < 20:
+            st.error("Au moins 20 observations valides sont nécessaires pour cette première expérimentation.")
+            return
+
+        X = donnees[variables].apply(pd.to_numeric, errors="coerce")
+        y = donnees[cible]
+        if X.isna().all().any():
+            st.error("Au moins une variable sélectionnée ne contient aucune valeur numérique exploitable.")
+            return
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.25, random_state=42, stratify=y
+            )
+            modele = Pipeline([
+                ("imputation", SimpleImputer(strategy="median")),
+                ("foret", RandomForestClassifier(
+                    n_estimators=300, random_state=42, class_weight="balanced",
+                    min_samples_leaf=2
+                ))
+            ])
+            modele.fit(X_train, y_train)
+            predictions = modele.predict(X_test)
+            st.session_state["modele_risque"] = modele
+            st.session_state["variables_modele_risque"] = variables
+            st.session_state["cible_modele_risque"] = cible
+            st.session_state["classes_modele_risque"] = list(modele.named_steps["foret"].classes_)
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Observations d'apprentissage", len(X_train))
+            m2.metric("Observations de test", len(X_test))
+            m3.metric("Exactitude équilibrée", f"{balanced_accuracy_score(y_test, predictions):.1%}")
+            st.write("**Matrice de confusion**")
+            cm = confusion_matrix(y_test, predictions, labels=modele.named_steps["foret"].classes_)
+            st.dataframe(
+                pd.DataFrame(cm, index=[f"Réel : {x}" for x in modele.named_steps["foret"].classes_],
+                             columns=[f"Prédit : {x}" for x in modele.named_steps["foret"].classes_]),
+                use_container_width=True
+            )
+            st.write("**Rapport de classification**")
+            st.code(classification_report(y_test, predictions, zero_division=0))
+            importances = pd.DataFrame({
+                "Variable": variables,
+                "Importance relative": modele.named_steps["foret"].feature_importances_
+            }).sort_values("Importance relative", ascending=False)
+            st.write("**Contribution des variables au modèle**")
+            st.dataframe(importances, use_container_width=True, hide_index=True)
+            st.session_state["rapport_modele_risque"] = {
+                "score": float(balanced_accuracy_score(y_test, predictions)),
+                "n": int(len(donnees))
+            }
+            st.success("Modèle entraîné en mémoire pour cette session. Les résultats doivent être validés sur un historique indépendant avant tout usage opérationnel.")
+        except Exception as exc:
+            st.error(f"Entraînement impossible : {exc}")
+
+    if "modele_risque" in st.session_state:
+        st.markdown("---")
+        st.subheader("Scorer de nouvelles observations")
+        st.caption("Le fichier doit contenir les mêmes variables explicatives que celles utilisées à l'entraînement.")
+        nouveau_fichier = st.file_uploader("Importer les observations à analyser (CSV)", type=["csv"], key="predict_new_csv")
+        if nouveau_fichier is not None:
+            try:
+                nouvelles = pd.read_csv(nouveau_fichier)
+                variables = st.session_state["variables_modele_risque"]
+                manquantes = [c for c in variables if c not in nouvelles.columns]
+                if manquantes:
+                    st.error("Colonnes manquantes : " + ", ".join(manquantes))
+                else:
+                    Xn = nouvelles[variables].apply(pd.to_numeric, errors="coerce")
+                    modele = st.session_state["modele_risque"]
+                    nouvelles["Classe estimée"] = modele.predict(Xn)
+                    probabilites = modele.predict_proba(Xn)
+                    classes = list(modele.named_steps["foret"].classes_)
+                    for i, classe in enumerate(classes):
+                        nouvelles[f"Probabilité — {classe}"] = probabilites[:, i]
+                    st.dataframe(nouvelles, use_container_width=True, hide_index=True)
+                    st.download_button(
+                        "Télécharger les estimations (CSV)",
+                        nouvelles.to_csv(index=False).encode("utf-8-sig"),
+                        "estimations_risque.csv", "text/csv"
+                    )
+                    st.warning("Une probabilité de classe est une estimation du modèle, pas une probabilité de fraude ni une conclusion d'audit.")
+            except Exception as exc:
+                st.error(f"Analyse des nouvelles observations impossible : {exc}")
+
+
+# ============================================================
+# 11. AUTOMATISATION DE CONTRÔLES DOCUMENTAIRES ET QUANTITATIFS
+# ============================================================
+
+def page_controles_automatises():
+    st.title("Automatisation de certains contrôles")
+    st.write(
+        "Exécuter des tests de cohérence, de complétude et de détection de signaux "
+        "sur un fichier CSV transmis par l'équipe de vérification."
+    )
+    st.markdown(
+        """<div class="notice"><b>Limite d'interprétation :</b> les tests identifient
+        des exceptions potentielles à examiner. Un doublon technique, une valeur
+        manquante ou un écart statistique ne constitue pas automatiquement une
+        irrégularité. Les règles doivent être adaptées au référentiel applicable.</div>""",
+        unsafe_allow_html=True,
+    )
+
+    fichier = st.file_uploader(
+        "Importer les données à contrôler (CSV)",
+        type=["csv"], key="automated_controls_csv"
+    )
+    if fichier is None:
+        st.info("Chargez un fichier d'opérations, de dépenses, de recettes, de marchés ou de paiements.")
+        st.caption("Le module fonctionne sur les colonnes réellement présentes dans votre fichier. Il ne crée pas de transactions ni de constats fictifs.")
+        return
+    try:
+        df = pd.read_csv(fichier)
+    except Exception as exc:
+        st.error(f"Lecture du fichier impossible : {exc}")
+        return
+
+    st.write(f"**{len(df)} lignes** — **{len(df.columns)} colonnes**")
+    st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+    if df.empty:
+        st.warning("Le fichier ne contient aucune ligne.")
+        return
+
+    onglets = st.tabs(["Complétude", "Doublons", "Valeurs numériques", "Synthèse des exceptions"])
+    resultats = []
+
+    with onglets[0]:
+        colonnes_obligatoires = st.multiselect(
+            "Champs à considérer comme obligatoires",
+            list(df.columns), key="control_required_cols"
+        )
+        if st.button("Exécuter le contrôle de complétude", key="run_completeness"):
+            if not colonnes_obligatoires:
+                st.warning("Sélectionnez au moins un champ.")
+            else:
+                masque = df[colonnes_obligatoires].isna() | df[colonnes_obligatoires].astype(str).apply(lambda col: col.str.strip().eq(""))
+                exceptions = df[masque.any(axis=1)].copy()
+                st.metric("Lignes comportant au moins un champ manquant", len(exceptions))
+                st.dataframe(exceptions, use_container_width=True, hide_index=True)
+                st.session_state["exceptions_completude"] = exceptions
+
+    with onglets[1]:
+        cles = st.multiselect(
+            "Colonnes définissant une opération potentiellement unique",
+            list(df.columns), key="control_duplicate_cols"
+        )
+        if st.button("Rechercher les doublons", key="run_duplicates"):
+            if not cles:
+                st.warning("Sélectionnez une ou plusieurs colonnes de référence.")
+            else:
+                doublons = df[df.duplicated(subset=cles, keep=False)].sort_values(cles)
+                st.metric("Lignes concernées par un doublon", len(doublons))
+                st.dataframe(doublons, use_container_width=True, hide_index=True)
+                st.session_state["exceptions_doublons"] = doublons
+
+    with onglets[2]:
+        numeriques = list(df.select_dtypes(include="number").columns)
+        if not numeriques:
+            st.info("Aucune colonne numérique détectée. Vérifiez le format des montants et quantités dans le fichier.")
+        else:
+            variable = st.selectbox("Variable quantitative à examiner", numeriques, key="control_numeric_col")
+            methode = st.radio("Méthode de repérage", ["Seuil fixé par l'utilisateur", "Valeurs atypiques (IQR)"], horizontal=True)
+            if methode == "Seuil fixé par l'utilisateur":
+                seuil = st.number_input("Seuil supérieur", value=float(df[variable].median()) if df[variable].notna().any() else 0.0)
+                anomalie = df[df[variable] > seuil].copy()
+                libelle = f"Valeurs supérieures à {seuil:g}"
+            else:
+                q1, q3 = df[variable].quantile([0.25, 0.75])
+                borne = q3 + 1.5 * (q3 - q1)
+                anomalie = df[df[variable] > borne].copy()
+                libelle = f"Valeurs atypiques supérieures à la borne IQR ({borne:g})"
+            st.caption(libelle)
+            st.metric("Lignes signalées", len(anomalie))
+            st.dataframe(anomalie, use_container_width=True, hide_index=True)
+            st.session_state["exceptions_numeriques"] = anomalie
+
+    with onglets[3]:
+        tableaux = []
+        for cle, nom in [
+            ("exceptions_completude", "Complétude"),
+            ("exceptions_doublons", "Doublons"),
+            ("exceptions_numeriques", "Valeurs numériques")
+        ]:
+            if cle in st.session_state and not st.session_state[cle].empty:
+                temp = st.session_state[cle].copy()
+                temp.insert(0, "Type de test", nom)
+                tableaux.append(temp)
+        if tableaux:
+            synthese = pd.concat(tableaux, ignore_index=True, sort=False)
+            st.dataframe(synthese, use_container_width=True, hide_index=True)
+            st.download_button("Exporter les exceptions", synthese.to_csv(index=False).encode("utf-8-sig"), "exceptions_controles.csv", "text/csv")
+        else:
+            st.info("Exécutez les tests dans les onglets précédents pour constituer une synthèse exportable.")
+
+    st.caption("Les résultats sont des signaux d'examen. L'inspecteur doit vérifier les pièces justificatives, la règle applicable, les éventuelles explications et la matérialité avant de qualifier un constat.")
+
+
+# ============================================================
+# 12. ASSISTANT IA D'AIDE AUX INSPECTEURS
+# ============================================================
+
+def page_assistant_ia():
+    st.title("Assistant IA d'aide aux inspecteurs")
+    st.write(
+        "Un espace d'assistance à la préparation des contrôles, à l'exploitation "
+        "du référentiel PABI–COMP et à la formulation de pistes de vérification."
+    )
+    st.markdown(
+        """<div class="notice"><b>Supervision humaine :</b> l'assistant fournit des
+        pistes de travail et des synthèses à vérifier. Il ne qualifie pas définitivement
+        les faits, ne rend pas de décision, ne remplace pas l'analyse des pièces et
+        ne se substitue jamais au jugement professionnel de l'inspecteur.</div>""",
+        unsafe_allow_html=True,
+    )
+
+    question = st.text_area(
+        "Votre demande",
+        placeholder="Ex. : Propose une démarche de vérification des paiements en doublon à partir des données disponibles.",
+        height=120, key="assistant_question"
+    )
+    cle_api = st.text_input(
+        "Clé API OpenAI (facultative — non enregistrée dans l'application)",
+        type="password", key="assistant_api_key",
+        help="La clé est utilisée uniquement pour la requête en cours. Vous pouvez aussi définir OPENAI_API_KEY dans l'environnement."
+    )
+    modele_api = st.text_input("Modèle API", value="gpt-4o-mini", key="assistant_model")
+
+    if st.button("Soumettre la demande", type="primary", key="ask_assistant"):
+        if not question.strip():
+            st.warning("Saisissez une question.")
+            return
+
+        # Contexte méthodologique issu du catalogue de l'application.
+        matches = []
+        termes = [t.lower() for t in re.findall(r"[A-Za-zÀ-ÿ0-9_-]{4,}", question)]
+        for code, dimension, libelle in INDICATORS:
+            texte = f"{code} {dimension} {libelle}".lower()
+            if any(t in texte for t in termes):
+                matches.append(f"- {code} | {dimension} | {libelle}")
+        contexte = "\n".join(matches[:20]) if matches else (
+            "Aucun indicateur PABI/COMP n'a été identifié par correspondance lexicale directe."
+        )
+
+        api_key = cle_api.strip() or os.environ.get("OPENAI_API_KEY", "")
+        if api_key:
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                reponse = client.chat.completions.create(
+                    model=modele_api.strip() or "gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content":
+                         "Tu es un assistant méthodologique pour des inspecteurs publics. "
+                         "Tu aides à préparer des contrôles, à structurer des tests et à "
+                         "identifier des pièces à examiner. Tu ne conclus jamais à une fraude "
+                         "ou à une irrégularité sur la seule base d'un signal. Distingue faits, "
+                         "hypothèses et vérifications à effectuer. Rappelle la nécessité de "
+                         "vérifier les textes applicables et les preuves. Ne prétends pas "
+                         "avoir consulté des documents qui ne sont pas fournis."},
+                        {"role": "user", "content":
+                         f"Demande : {question}\n\nIndicateurs pertinents repérés dans le catalogue de l'application :\n{contexte}"}
+                    ],
+                    temperature=0.2,
+                )
+                st.session_state["assistant_last_answer"] = reponse.choices[0].message.content
+                st.session_state["assistant_mode"] = "API IA"
+            except ImportError:
+                st.error("Le paquet OpenAI n'est pas installé. Installez-le avec : pip install openai")
+                return
+            except Exception as exc:
+                st.error(f"Le service IA n'a pas pu répondre : {exc}")
+                st.info("Vérifiez la clé, le modèle, la connexion et les autorisations API.")
+                return
+        else:
+            # Mode local sans modèle génératif : recherche de correspondances dans le référentiel.
+            lignes = [
+                "### Réponse d'assistance locale (sans modèle génératif)",
+                "Cette réponse repose uniquement sur le catalogue des 77 indicateurs intégré à l'application.",
+                "",
+                "**Demande reçue :** " + question.strip(),
+                "",
+                "**Indicateurs repérés :**",
+                contexte,
+                "",
+                "**Étapes de travail proposées :**",
+                "1. Définir l'objectif, le périmètre et les critères de contrôle.",
+                "2. Identifier les textes applicables et vérifier leur version en vigueur.",
+                "3. Demander les données sources et les pièces justificatives correspondantes.",
+                "4. Exécuter les rapprochements et tests pertinents, puis documenter les exceptions.",
+                "5. Soumettre chaque signal à un examen contradictoire et à une validation humaine.",
+                "",
+                "**Limite :** le mode local ne génère pas d'analyse IA. Il effectue une recherche lexicale dans le référentiel et rappelle une démarche générique."
+            ]
+            st.session_state["assistant_last_answer"] = "\n".join(lignes)
+            st.session_state["assistant_mode"] = "Mode local — recherche documentaire"
+
+    if st.session_state.get("assistant_last_answer"):
+        st.markdown("---")
+        st.caption("Mode utilisé : " + st.session_state.get("assistant_mode", ""))
+        st.markdown(st.session_state["assistant_last_answer"])
+        st.download_button(
+            "Télécharger la réponse (TXT)",
+            st.session_state["assistant_last_answer"],
+            "note_assistance_inspection.txt", "text/plain"
+        )
+
+
 def page_recommandations():
 
     show_placeholder(
@@ -1750,6 +2138,9 @@ routes = {
     "Accueil": page_accueil,
     "Déclenchement de la mission": page_declenchement,
     "Organismes à risque": page_organismes_risque,
+    "Analyse prédictive des risques": page_analyse_predictive,
+    "Contrôles automatisés": page_controles_automatises,
+    "Assistant IA des inspecteurs": page_assistant_ia,
     "Préparation de la mission": page_preparation,
     "Travaux de terrain": page_terrain,
     "Bibliothèque juridique": page_bibliotheque,
