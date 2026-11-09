@@ -267,6 +267,111 @@ st.markdown(
         border-radius: 12px;
     }}
 
+
+    /* =====================================================
+       CORRECTION CONTRASTE : TEXTES NOIRS ET SIDEBAR BLANCHE
+       ===================================================== */
+
+    /* Barre latérale entièrement blanche */
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] > div,
+    [data-testid="stSidebar"] section {{
+        background: #FFFFFF !important;
+        background-color: #FFFFFF !important;
+    }}
+
+    /* Tous les textes de la barre latérale en noir */
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] *,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] small {{
+        color: #000000 !important;
+    }}
+
+    /* Titres et éléments de navigation dans la barre latérale */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label,
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] *,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {{
+        color: #000000 !important;
+    }}
+
+    /* Fond blanc des éléments de navigation */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {{
+        background-color: #FFFFFF !important;
+    }}
+
+    /* Texte noir dans toute la zone principale */
+    [data-testid="stAppViewContainer"] .stMarkdown,
+    [data-testid="stAppViewContainer"] .stMarkdown *,
+    [data-testid="stAppViewContainer"] p,
+    [data-testid="stAppViewContainer"] li,
+    [data-testid="stAppViewContainer"] label,
+    [data-testid="stAppViewContainer"] [data-testid="stWidgetLabel"],
+    [data-testid="stAppViewContainer"] [data-testid="stWidgetLabel"] *,
+    [data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"],
+    [data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"] *,
+    [data-testid="stAppViewContainer"] [data-testid="stMetricLabel"],
+    [data-testid="stAppViewContainer"] [data-testid="stMetricValue"],
+    [data-testid="stAppViewContainer"] [data-testid="stMetricDelta"],
+    [data-testid="stAppViewContainer"] input,
+    [data-testid="stAppViewContainer"] textarea,
+    [data-testid="stAppViewContainer"] [data-baseweb="select"] *,
+    [data-testid="stAppViewContainer"] [data-testid="stDataFrame"] *,
+    [data-testid="stAppViewContainer"] [data-testid="stTable"] * {{
+        color: #000000 !important;
+    }}
+
+    /* Classes de présentation personnalisées : textes noirs */
+    .section-title,
+    .section-subtitle,
+    .panel-label,
+    .panel-number,
+    .panel-note,
+    .phase-number,
+    .phase-title,
+    .phase-text,
+    .notice,
+    .footer,
+    .tag {{
+        color: #000000 !important;
+    }}
+
+    /* Le bandeau principal conserve un texte clair pour le contraste */
+    .hero,
+    .hero-title {{
+        color: #FFFFFF !important;
+    }}
+    .hero-eyebrow {{
+        color: #F1C76F !important;
+    }}
+    .hero-subtitle {{
+        color: #FFFFFF !important;
+    }}
+
+    /* Les boutons principaux gardent un texte blanc sur fond bleu */
+    div.stButton > button[kind="primary"],
+    button[kind="primary"],
+    [data-testid="stFormSubmitButton"] button {{
+        color: #FFFFFF !important;
+    }}
+
+    /* Les boutons secondaires restent lisibles sur fond clair */
+    div.stButton > button:not([kind="primary"]) {{
+        color: #000000 !important;
+        background-color: #FFFFFF !important;
+    }}
+
+    /* Messages d'information, avertissement et succès */
+    [data-testid="stAlert"] *,
+    [data-testid="stExpander"] *,
+    [data-testid="stFileUploader"] *,
+    [data-testid="stDownloadButton"] * {{
+        color: #000000 !important;
+    }}
+
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     </style>
