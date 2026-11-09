@@ -729,17 +729,12 @@ def page_accueil():
     # PERSPECTIVES DE DÉVELOPPEMENT
     # ========================================================
 
-    section_title("Perspectives de développement")
+    section_title("")
 
     st.markdown(
         """
         <div class="panel" style="min-height:0;">
             <div class="panel-note" style="font-size:13px;line-height:1.8;color:#202B45;">
-                Les perspectives de développement portent notamment sur
-                l'analyse prédictive des risques, l'automatisation de certains
-                contrôles et l'intégration progressive de fonctionnalités
-                d'intelligence artificielle comme outil d'assistance aux
-                inspecteurs, sans se substituer à leur jugement professionnel.
             </div>
         </div>
         """,
